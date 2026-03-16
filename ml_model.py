@@ -140,6 +140,91 @@ def predict(bn, ao, payload):
     return results
 
 
+def inverse_predict(targets, payload, weights=None, grid_size=150):
+    """
+    Reverse prediction: given desired property values, find best BN% + AO%.
+
+    targets  : dict e.g. {"Tensile": 2.9, "Youngs": 180.0, "Hardness": 55.0, "Dielectrical": 4.5}
+               Pass None for any property to ignore it.
+    weights  : optional per-property importance weights (default equal)
+    grid_size: resolution of search grid (grid_size^2 points evaluated)
+    """
+    bn_vals = np.linspace(BN_MIN, BN_MAX, grid_size)
+    ao_vals = np.linspace(AO_MIN, AO_MAX, grid_size)
+    BN_grid, AO_grid = np.meshgrid(bn_vals, ao_vals)
+    X_grid = np.column_stack([BN_grid.ravel(), AO_grid.ravel()])
+
+    active_props = [p for p, v in targets.items() if v is not None]
+    if not active_props:
+        raise ValueError("At least one target property must be specified.")
+
+    if weights is None:
+        weights = {p: 1.0 for p in active_props}
+
+    # Predict all active properties across the entire grid
+    pred_matrix = {}
+    for prop in active_props:
+        name, mdl = payload["models"][prop]
+        if name == "GPR":
+            mu, _ = mdl.predict(X_grid, return_std=True)
+        else:
+            mu = mdl.predict(X_grid)
+        pred_matrix[prop] = mu
+
+    # Normalised weighted MSE — divide by predicted range so units don't dominate
+    total_error = np.zeros(len(X_grid))
+    for prop in active_props:
+        pmin = pred_matrix[prop].min()
+        pmax = pred_matrix[prop].max()
+        prop_range = max(pmax - pmin, 1e-9)
+        norm_err = (pred_matrix[prop] - targets[prop]) / prop_range
+        total_error += weights.get(prop, 1.0) * norm_err ** 2
+
+    best_idx = int(np.argmin(total_error))
+    best_bn  = float(X_grid[best_idx, 0])
+    best_ao  = float(X_grid[best_idx, 1])
+
+    # Get achieved values at best point
+    xi = np.array([[best_bn, best_ao]])
+    achieved = {}
+    for prop in TARGETS:
+        name, mdl = payload["models"][prop]
+        if name == "GPR":
+            mu, std = mdl.predict(xi, return_std=True)
+            achieved[prop] = {
+                "value":       round(float(mu[0]), 5),
+                "uncertainty": round(float(std[0]), 5),
+                "unit":        UNITS[prop],
+                "model":       name,
+                "r2":          payload["all_r2"][prop][name],
+            }
+        else:
+            mu = float(mdl.predict(xi)[0])
+            achieved[prop] = {
+                "value":       round(mu, 5),
+                "uncertainty": None,
+                "unit":        UNITS[prop],
+                "model":       name,
+                "r2":          payload["all_r2"][prop][name],
+            }
+
+    per_prop_error = {
+        prop: round(abs(achieved[prop]["value"] - targets[prop]), 6)
+        for prop in active_props
+    }
+
+    return {
+        "bn":             round(best_bn, 4),
+        "ao":             round(best_ao, 4),
+        "achieved":       achieved,
+        "per_prop_error": per_prop_error,
+        "total_error":    round(float(total_error[best_idx]), 8),
+        "error_surface":  total_error.reshape(grid_size, grid_size).tolist(),
+        "grid_bn":        bn_vals.tolist(),
+        "grid_ao":        ao_vals.tolist(),
+    }
+
+
 def get_pd_curves(bn, ao, payload):
     sweep = np.linspace(BN_MIN, BN_MAX, 40)
     curves = {}
