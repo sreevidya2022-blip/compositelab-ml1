@@ -310,3 +310,143 @@ function removeMsg(id) {
   const el = document.getElementById(id);
   if (el) el.remove();
 }
+
+// ── Mode Tab Switching ─────────────────────────────────────────────────────────
+function switchMode(mode) {
+  document.getElementById("pane-forward").style.display  = mode === "forward" ? "block" : "none";
+  document.getElementById("pane-inverse").style.display  = mode === "inverse" ? "block" : "none";
+  document.getElementById("tab-forward-btn").classList.toggle("active", mode === "forward");
+  document.getElementById("tab-inverse-btn").classList.toggle("active", mode === "inverse");
+}
+
+// ── Inverse Prediction ─────────────────────────────────────────────────────────
+async function runInverse() {
+  const tensile      = document.getElementById("inv-tensile").value.trim();
+  const youngs       = document.getElementById("inv-youngs").value.trim();
+  const hardness     = document.getElementById("inv-hardness").value.trim();
+  const dielectrical = document.getElementById("inv-dielectrical").value.trim();
+
+  const errEl = document.getElementById("inv-error");
+  errEl.textContent = "";
+
+  if (!tensile && !youngs && !hardness && !dielectrical) {
+    errEl.textContent = "Enter at least one target property.";
+    return;
+  }
+
+  const btn = document.getElementById("inv-run-btn");
+  btn.disabled = true;
+  btn.textContent = "Optimising...";
+
+  try {
+    const res = await fetch("/api/inverse_predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tensile:      tensile      || null,
+        youngs:       youngs       || null,
+        hardness:     hardness     || null,
+        dielectrical: dielectrical || null,
+      })
+    });
+    const data = await res.json();
+    if (data.error) { errEl.textContent = data.error; return; }
+
+    renderInverseResult(data, {
+      Tensile:      tensile      ? parseFloat(tensile)      : null,
+      Youngs:       youngs       ? parseFloat(youngs)       : null,
+      Hardness:     hardness     ? parseFloat(hardness)     : null,
+      Dielectrical: dielectrical ? parseFloat(dielectrical) : null,
+    });
+    renderInverseHeatmap(data);
+
+  } catch (e) {
+    errEl.textContent = "Network error: " + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Find Optimal Composition";
+  }
+}
+
+function renderInverseResult(d, targets) {
+  document.getElementById("inv-empty").style.display = "none";
+  document.getElementById("inv-result").style.display = "block";
+
+  document.getElementById("res-inv-bn").textContent = d.bn.toFixed(2);
+  document.getElementById("res-inv-ao").textContent = d.ao.toFixed(2);
+  document.getElementById("inv-total-err-val").textContent = d.total_error.toExponential(3);
+
+  const grid = document.getElementById("inv-achieved-grid");
+  grid.innerHTML = PROPS.map(prop => {
+    const a = d.achieved[prop];
+    const target = targets[prop];
+    let valClass = "";
+    let pctStr = "";
+    if (target !== null) {
+      const pct = Math.abs((a.value - target) / target) * 100;
+      valClass = pct < 2 ? "match" : pct < 8 ? "close" : "off";
+      pctStr = `<div class="inv-achieved-pct">Δ ${pct.toFixed(1)}%</div>`;
+    }
+    const unc = a.uncertainty
+      ? `<div class="inv-achieved-unc">±${a.uncertainty}</div>` : "";
+    const tgt = target !== null
+      ? `<div class="inv-achieved-target">target: ${target}</div>` : "";
+    const label = {"Tensile":"Tensile","Youngs":"Young's Mod.","Hardness":"Hardness","Dielectrical":"Dielectric"}[prop];
+    const unit = a.unit ? ` ${a.unit}` : "";
+    return `
+      <div class="inv-achieved-item">
+        <div class="inv-achieved-prop">${label}${unit}</div>
+        <div class="inv-achieved-val ${valClass}">${a.value}</div>
+        ${unc}${pctStr}${tgt}
+      </div>`;
+  }).join("");
+}
+
+function renderInverseHeatmap(d) {
+  const card = document.getElementById("inv-heatmap-card");
+  card.style.display = "block";
+
+  const canvas = document.getElementById("inv-heatmap");
+  const surface = d.error_surface;
+  const rows = surface.length;
+  const cols = surface[0].length;
+
+  let minE = Infinity, maxE = -Infinity;
+  for (const row of surface) for (const v of row) {
+    if (v < minE) minE = v;
+    if (v > maxE) maxE = v;
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth || 560;
+  const H = 200;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  const cellW = W / cols;
+  const cellH = H / rows;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const t = (surface[r][c] - minE) / (maxE - minE + 1e-12);
+      // teal (low error) → amber/red (high error)
+      const hue = 160 - t * 130;
+      const sat = 55 + t * 30;
+      const lig = 18 + t * 28;
+      ctx.fillStyle = `hsl(${hue},${sat}%,${lig}%)`;
+      ctx.fillRect(c * cellW, (rows - 1 - r) * cellH, cellW + 0.5, cellH + 0.5);
+    }
+  }
+
+  // Mark best point
+  const bx = Math.round((d.bn - 2.5) / 5 * (cols - 1));
+  const by = Math.round((d.ao - 2.5) / 5 * (rows - 1));
+  const px = bx * cellW + cellW / 2;
+  const py = (rows - 1 - by) * cellH + cellH / 2;
+  ctx.fillStyle = "#fff";
+  ctx.font = `bold ${Math.max(12, Math.round(cellW * 1.8))}px sans-serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("★", px, py);
+}
