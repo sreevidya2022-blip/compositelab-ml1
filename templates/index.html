@@ -67,6 +67,21 @@
   <!-- Main app (shown after training) -->
   <div id="app-section" style="display:none">
 
+    <!-- Mode Tabs -->
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="tab-forward-btn" onclick="switchMode('forward')">
+        <span class="tab-icon">⚗</span> Forward Prediction
+        <span class="tab-sub">Fillers → Properties</span>
+      </button>
+      <button class="mode-tab" id="tab-inverse-btn" onclick="switchMode('inverse')">
+        <span class="tab-icon">🔬</span> Inverse Prediction
+        <span class="tab-sub">Properties → Fillers</span>
+      </button>
+    </div>
+
+    <!-- ══ FORWARD TAB ══ -->
+    <div id="pane-forward">
+
     <!-- Input + Results row -->
     <div class="top-row">
 
@@ -171,7 +186,93 @@
       </div>
     </section>
 
-  </div>
+    </div><!-- /#pane-forward -->
+
+    <!-- ══ INVERSE TAB ══ -->
+    <div id="pane-inverse" style="display:none">
+      <div class="inverse-layout">
+
+        <!-- LEFT: Target inputs -->
+        <section class="section-card inverse-input-card">
+          <div class="section-label">Target Properties</div>
+          <p class="inv-hint">Enter your desired material properties. Leave blank to ignore. The optimizer will find the best BN% + Al₂O₃% match.</p>
+
+          <div class="inv-field">
+            <label class="inv-label">Tensile Strength <span class="inv-unit">GPa</span></label>
+            <input class="inv-input" id="inv-tensile" type="number" step="0.001" placeholder="e.g. 2.90">
+            <div class="inv-range">Typical: 2.85 – 2.95 GPa</div>
+          </div>
+          <div class="inv-field">
+            <label class="inv-label">Young's Modulus <span class="inv-unit">GPa</span></label>
+            <input class="inv-input" id="inv-youngs" type="number" step="0.1" placeholder="e.g. 180.0">
+            <div class="inv-range">Typical: 160 – 220 GPa</div>
+          </div>
+          <div class="inv-field">
+            <label class="inv-label">Hardness <span class="inv-unit">HV Vickers</span></label>
+            <input class="inv-input" id="inv-hardness" type="number" step="0.1" placeholder="e.g. 55.0">
+            <div class="inv-range">Typical: 40 – 80 HV</div>
+          </div>
+          <div class="inv-field">
+            <label class="inv-label">Dielectric Constant <span class="inv-unit">ε</span></label>
+            <input class="inv-input" id="inv-dielectrical" type="number" step="0.01" placeholder="e.g. 4.50">
+            <div class="inv-range">Typical: 3.5 – 6.5</div>
+          </div>
+
+          <button class="btn-primary inv-btn" id="inv-run-btn" onclick="runInverse()">
+            Find Optimal Composition
+          </button>
+          <div id="inv-error" class="inv-error"></div>
+        </section>
+
+        <!-- RIGHT: Result -->
+        <div class="inv-right">
+          <section class="section-card inv-result-card">
+            <div class="section-label">Optimal Composition</div>
+
+            <div id="inv-empty" class="inv-empty">
+              <div class="inv-empty-icon">◎</div>
+              <div>Set target properties and click<br><strong>Find Optimal Composition</strong></div>
+            </div>
+
+            <div id="inv-result" style="display:none">
+              <div class="inv-filler-row">
+                <div class="inv-filler-box">
+                  <div class="inv-filler-label">Boron Nitride</div>
+                  <div class="inv-filler-val" id="res-inv-bn">—</div>
+                  <div class="inv-filler-unit">wt%</div>
+                </div>
+                <div class="inv-plus">+</div>
+                <div class="inv-filler-box">
+                  <div class="inv-filler-label">Al₂O₃</div>
+                  <div class="inv-filler-val" id="res-inv-ao">—</div>
+                  <div class="inv-filler-unit">wt%</div>
+                </div>
+              </div>
+
+              <div class="inv-achieved-title">Achieved vs Target</div>
+              <div class="inv-achieved-grid" id="inv-achieved-grid"></div>
+
+              <div class="inv-total-err">
+                Optimisation residual: <span id="inv-total-err-val">—</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Error heatmap -->
+          <section class="section-card inv-heatmap-card" id="inv-heatmap-card" style="display:none">
+            <div class="section-label">Composition Error Landscape</div>
+            <canvas id="inv-heatmap"></canvas>
+            <div class="inv-heatmap-legend">
+              <span style="color:var(--accent)">★</span> = optimal point &nbsp;·&nbsp;
+              <span style="color:var(--accent)">dark</span> = low error (better match) &nbsp;·&nbsp; axes: BN% (x) · AO% (y)
+            </div>
+          </section>
+        </div>
+
+      </div>
+    </div><!-- /#pane-inverse -->
+
+  </div><!-- /#app-section -->
 </main>
 
 <script src="/static/js/app.js"></script>
