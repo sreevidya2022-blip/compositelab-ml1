@@ -9,6 +9,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, WhiteKernel, ConstantKernel
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import r2_score
+from sklearn.model_selection import LeaveOneOut
 
 TARGETS    = ["Tensile", "Youngs", "Hardness", "Dielectrical"]
 UNITS      = {"Tensile": "GPa", "Youngs": "GPa", "Hardness": "HV", "Dielectrical": ""}
@@ -73,6 +74,30 @@ def build_gbm(X, y, sw=None):
     return m
 
 
+def _r2_gpr_loo(X, y):
+    """Leave-one-out CV R² for GPR — honest estimate with only 9 experimental points.
+    Avoids the R²=1 artifact that comes from evaluating GPR on its own training data."""
+    if len(X) < 3:
+        return float("nan")
+    loo = LeaveOneOut()
+    y_true, y_pred = [], []
+    for train_idx, test_idx in loo.split(X):
+        m = build_gpr(X[train_idx], y[train_idx])
+        y_true.append(float(y[test_idx[0]]))
+        y_pred.append(float(m.predict(X[test_idx])[0]))
+    score = r2_score(y_true, y_pred)
+    return round(float(score), 4)
+
+
+def _r2_gbm_weighted(X, y, sw, mdl):
+    """Weighted R² on full training set for GBM."""
+    y_hat = mdl.predict(X)
+    w = sw / sw.sum()
+    ss_res = float(np.sum(w * (y - y_hat) ** 2))
+    ss_tot = float(np.sum(w * (y - np.dot(w, y)) ** 2))
+    return round(1.0 - ss_res / (ss_tot + 1e-12), 4)
+
+
 def train_models(theory_path, fea_path, exp_path):
     os.makedirs("models", exist_ok=True)
     df_theory, df_fea, df_exp = load_data(theory_path, fea_path, exp_path)
@@ -86,8 +111,8 @@ def train_models(theory_path, fea_path, exp_path):
         mdl_gpr = build_gpr(Xe, ye)
         mdl_gbm = build_gbm(X_all, y_all, sw)
 
-        r2_gpr = r2_score(ye, mdl_gpr.predict(Xe))
-        r2_gbm = r2_score(y_all, mdl_gbm.predict(X_all))
+        r2_gpr = _r2_gpr_loo(Xe, ye)
+        r2_gbm = _r2_gbm_weighted(X_all, y_all, sw, mdl_gbm)
 
         all_r2[prop] = {"GPR": round(r2_gpr, 4), "GBM": round(r2_gbm, 4)}
 
