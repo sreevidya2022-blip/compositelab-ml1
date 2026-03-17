@@ -1,5 +1,5 @@
 const PROPS   = ["Tensile","Youngs","Hardness","Buckling"];
-const COLORS  = {"Tensile":"#00e5a0","Youngs":"#3d9eff","Hardness":"#f5a623","Bucklingal":"#b06aff"};
+const COLORS  = {"Tensile":"#00e5a0","Youngs":"#3d9eff","Hardness":"#f5a623","Buckling":"#b06aff"};
 const LABELS  = {"Tensile":"Tensile Strength","Youngs":"Young's Modulus","Hardness":"Hardness","Buckling":"Buckling"};
 
 let chartBN    = null;
@@ -321,15 +321,15 @@ function switchMode(mode) {
 
 // ── Inverse Prediction ─────────────────────────────────────────────────────────
 async function runInverse() {
-  const tensile      = document.getElementById("inv-tensile").value.trim();
-  const youngs       = document.getElementById("inv-youngs").value.trim();
-  const hardness     = document.getElementById("inv-hardness").value.trim();
-  const Bucklingal = document.getElementById("inv-Buckling").value.trim();
+  const tensile  = document.getElementById("inv-tensile").value.trim();
+  const youngs   = document.getElementById("inv-youngs").value.trim();
+  const hardness = document.getElementById("inv-hardness").value.trim();
+  const buckling = document.getElementById("inv-buckling").value.trim();
 
   const errEl = document.getElementById("inv-error");
   errEl.textContent = "";
 
-  if (!tensile && !youngs && !hardness && !Bucklingal) {
+  if (!tensile && !youngs && !hardness && !buckling) {
     errEl.textContent = "Enter at least one target property.";
     return;
   }
@@ -343,20 +343,20 @@ async function runInverse() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        tensile:      tensile      || null,
-        youngs:       youngs       || null,
-        hardness:     hardness     || null,
-        Bucklingal: Bucklingal || null,
+        tensile:  tensile  || null,
+        youngs:   youngs   || null,
+        hardness: hardness || null,
+        buckling: buckling || null,
       })
     });
     const data = await res.json();
     if (data.error) { errEl.textContent = data.error; return; }
 
     renderInverseResult(data, {
-      Tensile:      tensile      ? parseFloat(tensile)      : null,
-      Youngs:       youngs       ? parseFloat(youngs)       : null,
-      Hardness:     hardness     ? parseFloat(hardness)     : null,
-      Bucklingal: Bucklingal ? parseFloat(Bucklingal) : null,
+      Tensile:  tensile  ? parseFloat(tensile)  : null,
+      Youngs:   youngs   ? parseFloat(youngs)   : null,
+      Hardness: hardness ? parseFloat(hardness) : null,
+      Buckling: buckling ? parseFloat(buckling) : null,
     });
     renderInverseHeatmap(data);
 
@@ -391,7 +391,7 @@ function renderInverseResult(d, targets) {
       ? `<div class="inv-achieved-unc">±${a.uncertainty}</div>` : "";
     const tgt = target !== null
       ? `<div class="inv-achieved-target">target: ${target}</div>` : "";
-    const label = {"Tensile":"Tensile","Youngs":"Young's Mod.","Hardness":"Hardness","Bucklingal":"Buckling"}[prop];
+    const label = {"Tensile":"Tensile","Youngs":"Young's Mod.","Hardness":"Hardness","Buckling":"Buckling"}[prop];
     const unit = a.unit ? ` ${a.unit}` : "";
     return `
       <div class="inv-achieved-item">
