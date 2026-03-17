@@ -6,8 +6,7 @@ from groq import Groq
 from dotenv import load_dotenv
 from ml_model import (
     train_models, load_models, predict,
-    get_pd_curves, inverse_predict,
-    TARGETS, UNITS, BN_MIN, BN_MAX, AO_MIN, AO_MAX
+    get_pd_curves, TARGETS, UNITS, BN_MIN, BN_MAX, AO_MIN, AO_MAX
 )
 
 load_dotenv()
@@ -33,7 +32,7 @@ Properties predicted:
 - Tensile Strength (GPa): measures how much pulling force the material can withstand
 - Young's Modulus (GPa): measures material stiffness / resistance to elastic deformation  
 - Hardness (HV Vickers): measures resistance to surface deformation
-- Dielectrical constant: measures electrical insulation capability
+- Buckling Load (kN): measures the maximum compressive load the composite can withstand before structural instability / bowing.
 
 ML Models used:
 - GPR (Gaussian Process Regression): probabilistic model, trained on 9 experimental points, gives real uncertainty estimates
@@ -131,35 +130,6 @@ def chat():
             temperature=0.7,
         )
         return jsonify({"reply": response.choices[0].message.content})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/inverse_predict", methods=["POST"])
-def inverse_predict_route():
-    if _payload is None:
-        return jsonify({"error": "Models not trained yet. Upload datasets first."}), 400
-
-    data = request.json
-    prop_keys = {
-        "tensile":      "Tensile",
-        "youngs":       "Youngs",
-        "hardness":     "Hardness",
-        "dielectrical": "Dielectrical",
-    }
-    targets = {}
-    weights = {}
-    for key, prop in prop_keys.items():
-        val = data.get(key)
-        targets[prop] = float(val) if val not in (None, "", "null") else None
-        w = data.get("weight_" + key)
-        weights[prop] = float(w) if w not in (None, "", "null") else 1.0
-
-    try:
-        result = inverse_predict(targets, _payload, weights=weights, grid_size=150)
-        return jsonify(result)
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
