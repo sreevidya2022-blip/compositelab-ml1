@@ -33,7 +33,7 @@ Properties predicted:
 - Tensile Strength (GPa): measures how much pulling force the material can withstand
 - Young's Modulus (GPa): measures material stiffness / resistance to elastic deformation  
 - Hardness (HV Vickers): measures resistance to surface deformation
-- Buckling Strength (GPa):measures the material’s ability to resist sudden structural instability or collapse when subjected to compressive loads.
+- Buckling Strength (GPa): measures the material's ability to resist sudden structural instability or collapse when subjected to compressive loads.
 
 
 ML Models used:
@@ -143,9 +143,9 @@ def inverse_predict_route():
 
     data = request.json
     prop_keys = {
-        "tensile":      "Tensile",
-        "youngs":       "Youngs",
-        "hardness":     "Hardness",
+        "tensile":  "Tensile",
+        "youngs":   "Youngs",
+        "hardness": "Hardness",
         "buckling": "Buckling",
     }
     targets = {}
